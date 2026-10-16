@@ -22,6 +22,7 @@ jobs:
       - name: Collect
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_PROGRESS_BARS: "1"
         run: python ingest.py
       - name: Pause after 3 failures in a row
         if: failure()
