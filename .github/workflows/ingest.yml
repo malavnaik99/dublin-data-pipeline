@@ -1,0 +1,37 @@
+# Saves a Dublinbikes + weather snapshot to Hugging Face every 15 minutes.
+# After 3 failed runs in a row it switches itself off and sends a Telegram alert.
+name: Collect data
+on:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch:
+concurrency: ingest
+permissions:
+  actions: write
+  contents: read
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -q -r requirements.txt
+      - run: python -m unittest discover -s tests
+      - name: Collect
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python ingest.py
+      - name: Pause after 3 failures in a row
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          before=$(gh run list -R "$GITHUB_REPOSITORY" -w ingest.yml -s completed -L 2 --json conclusion -q '[.[] | select(.conclusion == "failure")] | length')
+          [ "$before" = 2 ] || exit 0
+          gh workflow disable ingest.yml -R "$GITHUB_REPOSITORY"
+          msg="⚠️ Dublin data collector failed 3 times in a row, so it has paused itself. Details: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          [ -n "$TELEGRAM_BOT_TOKEN" ] && curl -sS -o /dev/null "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" --data-urlencode "text=$msg" || echo "No Telegram secret yet"
