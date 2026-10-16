@@ -1,0 +1,13 @@
+# One-off: checks the Telegram alert secrets work. Deleted after the test.
+name: Test alert
+on: workflow_dispatch
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -sS -f -o /dev/null "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" --data-urlencode "text=✅ Test: the Dublin data collector can reach you. If it ever stops, you'll get a message here."
+          echo "Sent"
