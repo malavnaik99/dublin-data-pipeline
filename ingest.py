@@ -7,7 +7,7 @@ import pandas as pd
 
 GBFS = "https://api.cyclocity.fr/contracts/dublin/gbfs/v3/gbfs.json"
 # Met Éireann observation stations tried in order; the first that answers is used.
-WEATHER = [f"https://prodapi.metweb.ie/observations/{s}/today" for s in ("dublin-airport", "dublin", "phoenix-park", "casement")]
+WEATHER = [f"https://prodapi.metweb.ie/observations/{s}/today" for s in ("dublin", "dublin-airport", "casement")]
 REPO = os.environ.get("HF_DATASET", "Malavnaik/dublin-bikes-weather-raw")
 
 CARD = """---
