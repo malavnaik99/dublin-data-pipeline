@@ -87,7 +87,8 @@ def main():
     open("warehouse/README.md", "w").write(CARD)
     print(json.dumps(log, indent=1))
     if subprocess.run(["dbt", "docs", "generate", "--static"], cwd="dbt").returncode == 0:
-        api.create_repo(DOCS, repo_type="space", space_sdk="static", private=True, exist_ok=True)  # Malav makes it public after review
+        api.create_repo(DOCS, repo_type="space", space_sdk="static", exist_ok=True)
+        api.update_repo_settings(DOCS, repo_type="space", private=False)  # approved by Malav on 21 Oct
         api.upload_file(path_or_fileobj="dbt/target/static_index.html", path_in_repo="index.html",
                         repo_id=DOCS, repo_type="space", commit_message="dbt docs")
     # Publish even when a check failed, so the run log shows what broke; the workflow then alerts.
