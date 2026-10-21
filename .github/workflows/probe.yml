@@ -4,16 +4,19 @@ on: workflow_dispatch
 jobs:
   probe:
     runs-on: ubuntu-latest
+    env:
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
     steps:
-      - run: pip install -q duckdb
+      - run: pip install -q duckdb huggingface_hub
       - shell: python
         run: |
           import duckdb
+          from huggingface_hub import snapshot_download
+          base = snapshot_download("Malavnaik/dublin-bikes-weather-raw", repo_type="dataset", local_dir="raw_data") + "/raw"
           con = duckdb.connect()
-          base = "hf://datasets/Malavnaik/dublin-bikes-weather-raw/raw"
           for t in ["bikes", "stations", "weather"]:
               src = f"read_parquet('{base}/{t}/*/*.parquet', hive_partitioning=true, union_by_name=true)"
               print(f"\n=== {t} ===")
               print(con.sql(f"DESCRIBE SELECT * FROM {src}"))
-              print(con.sql(f"SELECT count(*) rows, count(DISTINCT fetched_at) runs, min(fetched_at), max(fetched_at) FROM {src}"))
+              print(con.sql(f"SELECT count(*) AS n_rows, count(DISTINCT fetched_at) AS n_runs, min(fetched_at), max(fetched_at) FROM {src}"))
               print(con.sql(f"SELECT * FROM {src} LIMIT 2"))
