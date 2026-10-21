@@ -1,1 +1,6 @@
 __pycache__/
+raw_data/
+warehouse/
+dbt/target/
+dbt/logs/
+dbt/.user.yml

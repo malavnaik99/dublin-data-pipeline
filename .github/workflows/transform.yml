@@ -1,0 +1,26 @@
+# Daily: dbt models + data tests (incl. freshness and volume) on the collected data; publishes the marts.
+# Started by the collector's run just after 06:00 UTC (see ingest.yml), or by hand. Alerts on Telegram if anything fails.
+name: Transform (dbt)
+on: workflow_dispatch
+concurrency: transform
+jobs:
+  dbt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -q dbt-duckdb huggingface_hub
+      - run: python transform.py
+      - name: Alert on failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          msg="⚠️ Dublin data pipeline: a data check failed in today's run (for example, data is late or missing). Details: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl -sS -o /dev/null "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" --data-urlencode "text=$msg"

@@ -1,0 +1,10 @@
+name: dublin_bikes
+version: "1.0"
+profile: dublin_bikes
+vars:
+  raw_path: "../raw_data/raw"   # local copy of the Hugging Face raw dataset
+models:
+  dublin_bikes:
+    staging: {+materialized: view}
+    intermediate: {+materialized: view}
+    marts: {+materialized: table}
