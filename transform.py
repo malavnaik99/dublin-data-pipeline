@@ -73,7 +73,9 @@ def main():
         con.sql(f"COPY {t} TO 'warehouse/marts/{t}.parquet' (FORMAT parquet)")
         counts[t] = con.sql(f"select count(*) from {t}").fetchone()[0]
     newest = con.sql("select max(hour_utc) from fct_station_hour").fetchone()[0]
-    json.dump(dashboard(con), open("warehouse/dashboard.json", "w"), indent=1, default=str)
+    dash = dashboard(con)
+    json.dump(dash, open("warehouse/dashboard.json", "w"), indent=1, default=str)
+    print("DASHBOARD", json.dumps(dash, default=str))
     con.close()
     log = {"run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "ok": build.returncode == 0,
            "tests_passed": sum(r["status"] == "pass" for r in tests), "tests_total": len(tests),
