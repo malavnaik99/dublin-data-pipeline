@@ -1,20 +1,24 @@
 version: 2
 models:
   - name: stg_bikes
+    description: "One row per station per snapshot (about every 15 minutes), from the Dublinbikes GBFS feed."
     columns:
       - name: station_id
         data_tests: [not_null]
       - name: fetched_at
         data_tests: [not_null]
   - name: dim_station
+    description: "One row per Dublinbikes station: name, address, location and capacity."
     columns:
       - name: station_id
         data_tests: [unique, not_null]
   - name: dim_hour
+    description: "One row per UTC hour: Dublin local time, weekday/weekend and that hour's Met Éireann weather (Dublin Airport)."
     columns:
       - name: hour_utc
         data_tests: [unique, not_null]
   - name: fct_station_hour
+    description: "Fact table, one row per station per hour: average/min/max bikes, free docks and share of the hour the station was empty or full. Incremental: each run recomputes the last 3 hours."
     columns:
       - name: station_id
         data_tests:
@@ -24,3 +28,9 @@ models:
         data_tests:
           - not_null
           - relationships: {arguments: {to: ref('dim_hour'), field: hour_utc}}
+  - name: stg_stations
+    description: "Latest known details per station (station info is saved once a day)."
+  - name: stg_weather
+    description: "One row per hourly observation, de-duplicated (each hourly file repeats the day so far), converted to UTC."
+  - name: int_bikes_hourly
+    description: "Station x UTC hour summary of the 15-minute snapshots."

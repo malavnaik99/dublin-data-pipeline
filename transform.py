@@ -9,6 +9,7 @@ from huggingface_hub.errors import EntryNotFoundError, RepositoryNotFoundError
 
 MARTS = os.environ.get("HF_MARTS", "Malavnaik/dublin-bikes-weather-marts")
 RAW = os.environ.get("HF_DATASET", "Malavnaik/dublin-bikes-weather-raw")
+DOCS = "Malavnaik/dublin-bikes-dbt-docs"  # static Space with the dbt docs and lineage graph
 CARD = """---
 license: cc-by-4.0
 pretty_name: Dublin Bikes + Weather (modelled)
@@ -31,6 +32,27 @@ Sources: Dublinbikes GBFS feed, Dublin City Council / JCDecaux, CC BY 4.0; weath
 """
 
 
+def dashboard(con):
+    """Small summary the website's dashboard reads directly from Hugging Face."""
+    q = lambda sql: [dict(zip([d[0] for d in r.description], row)) for r in [con.sql(sql)] for row in r.fetchall()]
+    base = """from fct_station_hour f join dim_station s using (station_id) join dim_hour h using (hour_utc)
+              where s.capacity > 0"""
+    return {
+        "summary": q(f"""select count(distinct f.station_id) AS stations, count(distinct f.hour_utc) AS n_hours,
+                        min(h.local_date) AS first_day, max(h.local_date) AS last_day,
+                        round(avg(f.share_empty) * 100, 1) pct_time_empty {base}""")[0],
+        "by_local_hour": q(f"""select h.local_hour, h.is_weekend,
+                              round(avg(f.avg_bikes / s.capacity) * 100, 1) pct_bikes_available,
+                              round(avg(f.share_empty) * 100, 1) pct_time_empty
+                              {base} group by all order by 2, 1"""),
+        "rain": q(f"""select case when h.rainfall_mm > 0 then 'raining' else 'dry' end as weather, count(distinct f.hour_utc) AS n_hours,
+                     round(avg(f.avg_bikes / s.capacity) * 100, 1) pct_bikes_available
+                     {base} and h.rainfall_mm is not null group by 1 order by 1"""),
+        "most_often_empty": q(f"""select s.station_name, round(avg(f.share_empty) * 100, 1) pct_time_empty
+                                 {base} group by 1 order by 2 desc limit 10"""),
+    }
+
+
 def main():
     api = HfApi()
     snapshot_download(RAW, repo_type="dataset", local_dir="raw_data", allow_patterns=["raw/*"])
@@ -51,6 +73,7 @@ def main():
         con.sql(f"COPY {t} TO 'warehouse/marts/{t}.parquet' (FORMAT parquet)")
         counts[t] = con.sql(f"select count(*) from {t}").fetchone()[0]
     newest = con.sql("select max(hour_utc) from fct_station_hour").fetchone()[0]
+    json.dump(dashboard(con), open("warehouse/dashboard.json", "w"), indent=1, default=str)
     con.close()
     log = {"run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "ok": build.returncode == 0,
            "tests_passed": sum(r["status"] == "pass" for r in tests), "tests_total": len(tests),
@@ -59,6 +82,10 @@ def main():
     json.dump(log, open("warehouse/run_log.json", "w"), indent=1)
     open("warehouse/README.md", "w").write(CARD)
     print(json.dumps(log, indent=1))
+    if subprocess.run(["dbt", "docs", "generate", "--static"], cwd="dbt").returncode == 0:
+        api.create_repo(DOCS, repo_type="space", space_sdk="static", private=True, exist_ok=True)  # Malav makes it public after review
+        api.upload_file(path_or_fileobj="dbt/target/static_index.html", path_in_repo="index.html",
+                        repo_id=DOCS, repo_type="space", commit_message="dbt docs")
     # Publish even when a check failed, so the run log shows what broke; the workflow then alerts.
     api.upload_folder(repo_id=MARTS, repo_type="dataset", folder_path="warehouse", commit_message=f"dbt run {log['run_at']}")
     sys.exit(build.returncode)
