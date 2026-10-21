@@ -36,7 +36,9 @@ def dashboard(con):
     """Small summary the website's dashboard reads directly from Hugging Face."""
     q = lambda sql: [dict(zip([d[0] for d in r.description], row)) for r in [con.sql(sql)] for row in r.fetchall()]
     base = """from fct_station_hour f join dim_station s using (station_id) join dim_hour h using (hour_utc)
-              where s.capacity > 0"""
+              where s.capacity > 0
+                and f.station_id in (select station_id from fct_station_hour group by 1 having max(max_bikes) > 0)"""
+    # ^ leaves out stations that never had a bike in the period (e.g. a placeholder "STATION118" that is always empty)
     return {
         "summary": q(f"""select count(distinct f.station_id) AS stations, count(distinct f.hour_utc) AS n_hours,
                         min(h.local_date) AS first_day, max(h.local_date) AS last_day,
