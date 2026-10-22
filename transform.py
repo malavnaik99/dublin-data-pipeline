@@ -34,7 +34,7 @@ Sources: Dublinbikes GBFS feed, Dublin City Council / JCDecaux, CC BY 4.0; weath
 
 def dashboard(con):
     """Small summary the website's dashboard reads directly from Hugging Face."""
-    q = lambda sql: [dict(zip([d[0] for d in r.description], row)) for r in [con.sql(sql)] for row in r.fetchall()]
+    q = lambda sql: [dict(zip([d[0] for d in r.description], row)) for r in [con.execute(sql)] for row in r.fetchall()]
     base = """from fct_station_hour f join dim_station s using (station_id) join dim_hour h using (hour_utc)
               where s.capacity > 0
                 and f.station_id in (select station_id from fct_station_hour group by 1 having max(max_bikes) > 0)"""
@@ -72,9 +72,9 @@ def main():
     os.makedirs("warehouse/marts", exist_ok=True)
     counts = {}
     for t in ["fct_station_hour", "dim_station", "dim_hour"]:
-        con.sql(f"COPY {t} TO 'warehouse/marts/{t}.parquet' (FORMAT parquet)")
-        counts[t] = con.sql(f"select count(*) from {t}").fetchone()[0]
-    newest = con.sql("select max(hour_utc) from fct_station_hour").fetchone()[0]
+        con.execute(f"COPY {t} TO 'warehouse/marts/{t}.parquet' (FORMAT parquet)")
+        counts[t] = con.execute(f"select count(*) from {t}").fetchone()[0]
+    newest = con.execute("select max(hour_utc) from fct_station_hour").fetchone()[0]
     dash = dashboard(con)
     json.dump(dash, open("warehouse/dashboard.json", "w"), indent=1, default=str)
     print("DASHBOARD", json.dumps(dash, default=str))
