@@ -10,12 +10,13 @@ DAYS = 14
 con = duckdb.connect()
 for t in ("fct_station_hour", "dim_station", "dim_hour"):
     con.execute(f"create view {t}_all as select * from '{hf_hub_download(MARTS, f'marts/{t}.parquet', repo_type='dataset')}'")
-end = con.execute("select max(hour_utc) from fct_station_hour_all").fetchone()[0]
-con.execute(f"create table fct_station_hour as select * from fct_station_hour_all where hour_utc > timestamp '{end}' - interval {DAYS} day")
+# Times are compared and printed inside DuckDB, so Python never converts time-zone timestamps.
+con.execute(f"create table fct_station_hour as select * from fct_station_hour_all where hour_utc > (select max(hour_utc) from fct_station_hour_all) - interval {DAYS} day")
 con.execute("create table dim_hour as select * from dim_hour_all where hour_utc in (select distinct hour_utc from fct_station_hour)")
 con.execute("create table dim_station as select * from dim_station_all")
 about = {"source": f"huggingface.co/datasets/{MARTS} (marts/*.parquet)", "days": DAYS,
-         "from_utc": str(con.execute("select min(hour_utc) from fct_station_hour").fetchone()[0]), "to_utc": str(end),
+         "from_utc": con.execute("select strftime(min(hour_utc) at time zone 'UTC', '%Y-%m-%dT%H:%M:%SZ') from fct_station_hour").fetchone()[0],
+         "to_utc": con.execute("select strftime(max(hour_utc) at time zone 'UTC', '%Y-%m-%dT%H:%M:%SZ') from fct_station_hour").fetchone()[0],
          "rows": {t: con.execute(f"select count(*) from {t}").fetchone()[0] for t in ("fct_station_hour", "dim_station", "dim_hour")}}
 for t in about["rows"]:
     con.execute(f"copy {t} to 'sample/{t}.parquet' (format parquet, compression zstd)")
