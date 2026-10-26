@@ -1,0 +1,20 @@
+# Makes a small Parquet sample (last 14 days) of the public marts for the SQL console on malavnaik.com, and saves it in sample/.
+name: SQL console sample
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q duckdb==1.5.6 huggingface_hub
+      - run: python sample.py && ls -la sample
+      - name: Save the sample in the repo
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sample
+          git diff --cached --quiet || { git commit -qm "Refresh SQL console sample"; git push -q; }
