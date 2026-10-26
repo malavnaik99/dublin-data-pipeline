@@ -1,6 +1,7 @@
 """Make a small Parquet sample of the public marts (last 14 days) for the SQL console on malavnaik.com.
 Reads the published tables from the Hugging Face dataset; writes sample/*.parquet and sample/about.json."""
 import json
+import os
 
 import duckdb
 from huggingface_hub import hf_hub_download
@@ -18,6 +19,7 @@ about = {"source": f"huggingface.co/datasets/{MARTS} (marts/*.parquet)", "days":
          "from_utc": con.execute("select strftime(min(hour_utc) at time zone 'UTC', '%Y-%m-%dT%H:%M:%SZ') from fct_station_hour").fetchone()[0],
          "to_utc": con.execute("select strftime(max(hour_utc) at time zone 'UTC', '%Y-%m-%dT%H:%M:%SZ') from fct_station_hour").fetchone()[0],
          "rows": {t: con.execute(f"select count(*) from {t}").fetchone()[0] for t in ("fct_station_hour", "dim_station", "dim_hour")}}
+os.makedirs("sample", exist_ok=True)
 for t in about["rows"]:
     con.execute(f"copy {t} to 'sample/{t}.parquet' (format parquet, compression zstd)")
 json.dump(about, open("sample/about.json", "w"), indent=1)
