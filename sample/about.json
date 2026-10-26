@@ -1,0 +1,11 @@
+{
+ "source": "huggingface.co/datasets/Malavnaik/dublin-bikes-weather-marts (marts/*.parquet)",
+ "days": 14,
+ "from_utc": "2026-10-16T11:00:00Z",
+ "to_utc": "2026-10-26T06:00:00Z",
+ "rows": {
+  "fct_station_hour": 27140,
+  "dim_station": 115,
+  "dim_hour": 236
+ }
+}
