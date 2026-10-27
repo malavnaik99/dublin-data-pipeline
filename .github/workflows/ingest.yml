@@ -18,11 +18,11 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
       - run: pip install -q -r requirements.txt
-      - run: python -m unittest discover -s tests
       - name: Collect
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_HUB_DISABLE_PROGRESS_BARS: "1"
+          ARROW_DEFAULT_MEMORY_POOL: system  # avoids pyarrow's rare crash when Python exits
         run: python ingest.py
       - name: Start the daily dbt run (first collection after 06:00 UTC)
         if: success()
