@@ -1,6 +1,6 @@
 """Every run: save one snapshot of every Dublinbikes station (and the latest Dublin weather)
 to a public Hugging Face dataset as date-partitioned Parquet. Files are new each run; nothing is overwritten."""
-import io, json, os, sys, urllib.request
+import io, json, os, sys, time, urllib.error, urllib.request
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -29,10 +29,18 @@ Files are only ever added, never changed. `fetched_at` is UTC. Weather rows repe
 """
 
 
-def get(url):
+def get(url, tries=4, wait=15):
+    """Retries brief outages (the bike feed sometimes answers 503), so one blip doesn't fail the run."""
     req = urllib.request.Request(url, headers={"User-Agent": "dublin-data-pipeline (github.com/malavnaik99)"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
+    for attempt in range(tries):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+        except (urllib.error.URLError, TimeoutError) as e:
+            if isinstance(e, urllib.error.HTTPError) and e.code not in (429, 500, 502, 503, 504) or attempt == tries - 1:
+                raise
+            print(f"{url} not available ({e}), retrying")
+            time.sleep(wait * 2 ** attempt)  # 15s, 30s, 60s
 
 
 def feed_urls(discovery):
@@ -85,7 +93,7 @@ def main():
     if not exists(path):
         for url in WEATHER:  # weather is a bonus: a failure here never stops the bike snapshot
             try:
-                rows = get(url)
+                rows = get(url, tries=1)  # weather has its own fallback stations
                 if rows:
                     files[path] = parquet(flat(rows, fetched_at))
                     print(f"Weather: {len(rows)} observations from {url}")
