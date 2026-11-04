@@ -1,4 +1,5 @@
-import io, json, sys, unittest
+import io, json, sys, unittest, urllib.error
+from unittest import mock
 from pathlib import Path
 
 import pandas as pd
@@ -26,6 +27,18 @@ class TestIngest(unittest.TestCase):
         self.assertEqual(df.columns[0], "fetched_at")
         self.assertEqual(json.loads(df.loc[0, "vehicle_types_available"])[0]["count"], 4)
         self.assertEqual(df["num_vehicles_available"].tolist(), [4, 0])
+
+    def test_get_retries_503_but_not_404(self):
+        ok = mock.MagicMock()
+        ok.__enter__.return_value = io.BytesIO(b'{"a": 1}')
+        err = lambda code: urllib.error.HTTPError("u", code, "x", {}, None)
+        with mock.patch("urllib.request.urlopen", side_effect=[err(503), err(503), ok]) as op, mock.patch("time.sleep"):
+            self.assertEqual(ingest.get("https://x/u"), {"a": 1})
+            self.assertEqual(op.call_count, 3)
+        with mock.patch("urllib.request.urlopen", side_effect=[err(404)]), mock.patch("time.sleep"):
+            self.assertRaises(urllib.error.HTTPError, ingest.get, "https://x/u")
+        with mock.patch("urllib.request.urlopen", side_effect=[err(503)] * 4), mock.patch("time.sleep"):
+            self.assertRaises(urllib.error.HTTPError, ingest.get, "https://x/u")
 
 
 if __name__ == "__main__":
