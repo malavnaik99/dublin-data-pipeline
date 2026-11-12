@@ -1,7 +1,10 @@
 # Daily: dbt models + data tests (incl. freshness and volume) on the collected data; publishes the marts.
 # Started by the collector's run just after 06:00 UTC (see ingest.yml), or by hand. Alerts on Telegram if anything fails.
 name: Transform (dbt)
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      full_refresh: { description: "Rebuild the fact table from all raw data", type: boolean, default: false }
 concurrency: transform
 jobs:
   dbt:
@@ -10,6 +13,7 @@ jobs:
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_HUB_DISABLE_PROGRESS_BARS: "1"
+      DBT_FULL_REFRESH: ${{ inputs.full_refresh && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

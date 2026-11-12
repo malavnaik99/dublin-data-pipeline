@@ -1,4 +1,4 @@
--- Leaves out placeholder stations (e.g. "STATION118") and stations with no docks.
+-- Leaves out placeholder stations (e.g. "STATION118").
 select station_id, station_name, address, lat, lon, capacity
 from {{ ref('stg_stations') }}
-where capacity > 0 and station_name not like 'STATION%'
+where station_name not like 'STATION%'
