@@ -1,6 +1,6 @@
 """Daily: download the raw snapshots and yesterday's warehouse, run dbt (models + tests), publish the marts.
 The DuckDB warehouse file is kept in a Hugging Face dataset so the incremental fact table carries over between runs."""
-import json, os, subprocess, sys
+import json, os, re, subprocess, sys
 from datetime import datetime, timezone
 
 import duckdb
@@ -25,6 +25,7 @@ Daily output of the dbt models in [dublin-data-pipeline](https://github.com/mala
 | `marts/fct_station_hour.parquet` | one row per station per hour: average/min/max bikes, free docks, share of time empty/full |
 | `marts/dim_station.parquet` | one row per station: name, location, capacity |
 | `marts/dim_hour.parquet` | one row per hour: Dublin local time, weekday, weather |
+| `sky/latest.json` | last 48 hours of rounded average bikes per station, small enough for a web page to fetch |
 | `run_log.json` | the latest run: time, row counts, tests passed |
 | `dublin.duckdb` | the whole warehouse (DuckDB file) |
 
@@ -55,6 +56,21 @@ def dashboard(con):
     }
 
 
+def sky(con):
+    """Last 48 hours of bikes per station (sky/latest.json), compact for a web page to fetch directly."""
+    hours = con.execute("select hour_utc, strftime(hour_local, '%Y-%m-%dT%H:00') from dim_hour order by 1 desc limit 48").fetchall()[::-1]
+    stations = con.execute("""select station_id, station_name, round(lat, 5), round(lon, 5), capacity from dim_station
+                              where capacity > 0 and station_name not like 'STATION%' order by station_name""").fetchall()
+    bikes = {(s, h): b for s, h, b in con.execute("""select station_id, hour_utc, cast(round(avg_bikes) as int)
+                                                    from fct_station_hour where hour_utc >= ?""", [hours[0][0]]).fetchall()}
+    name = lambda n: re.sub(r"'S\b", "'s", n.title())  # "SIR PATRICK DUN'S" -> "Sir Patrick Dun's"
+    return {"source": "Dublin bikes pipeline, hourly averages",
+            "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "hours": [local for _, local in hours],
+            "stations": [[name(n), lat, lon, cap] for _, n, lat, lon, cap in stations],
+            "bikes": [[bikes.get((s, h)) for h, _ in hours] for s, *_ in stations]}
+
+
 def main():
     api = HfApi()
     snapshot_download(RAW, repo_type="dataset", local_dir="raw_data", allow_patterns=["raw/*"])
@@ -78,6 +94,8 @@ def main():
     dash = dashboard(con)
     json.dump(dash, open("warehouse/dashboard.json", "w"), indent=1, default=str)
     print("DASHBOARD", json.dumps(dash, default=str))
+    os.makedirs("warehouse/sky", exist_ok=True)
+    json.dump(sky(con), open("warehouse/sky/latest.json", "w"), separators=(",", ":"))
     con.close()
     log = {"run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "ok": build.returncode == 0,
            "tests_passed": sum(r["status"] == "pass" for r in tests), "tests_total": len(tests),
