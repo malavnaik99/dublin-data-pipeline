@@ -1,7 +1,9 @@
-# Daily: dbt models + data tests (incl. freshness and volume) on the collected data; publishes the marts.
-# Started by the collector's run just after 06:00 UTC (see ingest.yml), or by hand. Alerts on Telegram if anything fails.
+# Hourly: dbt models + data tests (incl. freshness and volume) on the collected data; publishes the marts and sky/latest.json.
+# Hourly because the website shows sky/latest.json as live only while it is under 2 hours old. Alerts on Telegram if anything fails.
 name: Transform (dbt)
 on:
+  schedule:
+    - cron: "25 * * * *"  # :25, after the collector's :19 snapshot and off the busy :00
   workflow_dispatch:
     inputs:
       full_refresh: { description: "Rebuild the fact table from all raw data", type: boolean, default: false }
@@ -26,5 +28,5 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          msg="⚠️ Dublin data pipeline: a data check failed in today's run (for example, data is late or missing). Details: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          msg="⚠️ Dublin data pipeline: a data check failed in an hourly run (for example, data is late or missing). Details: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           curl -sS -o /dev/null "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" --data-urlencode "text=$msg"
