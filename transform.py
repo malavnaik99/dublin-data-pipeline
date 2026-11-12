@@ -60,7 +60,7 @@ def sky(con):
     """Last 48 hours of bikes per station (sky/latest.json), compact for a web page to fetch directly."""
     hours = con.execute("select hour_utc, strftime(hour_local, '%Y-%m-%dT%H:00') from dim_hour order by 1 desc limit 48").fetchall()[::-1]
     stations = con.execute("""select station_id, station_name, round(lat, 5), round(lon, 5), capacity from dim_station
-                              where capacity > 0 and station_name not like 'STATION%' order by station_name""").fetchall()
+                              where station_name not like 'STATION%' order by station_name""").fetchall()
     bikes = {(s, h): b for s, h, b in con.execute("""select station_id, hour_utc, cast(round(avg_bikes) as int)
                                                     from fct_station_hour where hour_utc >= ?""", [hours[0][0]]).fetchall()}
     name = lambda n: re.sub(r"'S\b", "'s", n.title())  # "SIR PATRICK DUN'S" -> "Sir Patrick Dun's"
