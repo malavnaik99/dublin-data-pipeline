@@ -24,6 +24,12 @@ jobs:
           HF_HUB_DISABLE_PROGRESS_BARS: "1"
           ARROW_DEFAULT_MEMORY_POOL: system  # avoids pyarrow's rare crash when Python exits
         run: python ingest.py
+      - name: Start the hourly dbt run (the collection between :15 and :29)
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          m=$(date -u +%M); [ "${m#0}" -ge 15 ] && [ "${m#0}" -lt 30 ] && gh workflow run transform.yml -R "$GITHUB_REPOSITORY" || true
       - name: Pause after 3 failures in a row
         if: failure()
         env:
