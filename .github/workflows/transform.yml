@@ -1,9 +1,8 @@
 # Hourly: dbt models + data tests (incl. freshness and volume) on the collected data; publishes the marts and sky/latest.json.
+# Started every hour by the collector's :15 run (see ingest.yml), or by hand: GitHub's own schedule fires only every few hours here.
 # Hourly because the website shows sky/latest.json as live only while it is under 2 hours old. Alerts on Telegram if anything fails.
 name: Transform (dbt)
 on:
-  schedule:
-    - cron: "25 * * * *"  # :25, after the collector's :19 snapshot and off the busy :00
   workflow_dispatch:
     inputs:
       full_refresh: { description: "Rebuild the fact table from all raw data", type: boolean, default: false }
